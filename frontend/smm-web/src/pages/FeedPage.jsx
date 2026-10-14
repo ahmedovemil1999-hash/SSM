@@ -1,54 +1,62 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
 import {
-  AppBar,
   Avatar,
-  Badge,
   Box,
   Container,
-  IconButton,
-  InputBase,
+  InputAdornment,
   Paper,
   Skeleton,
   Stack,
-  Toolbar,
+  TextField,
   Typography,
-} from "@mui/material";
+} from '@mui/material';
 
-import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
-import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
-import ChatBubbleOutlineRoundedIcon from "@mui/icons-material/ChatBubbleOutlineRounded";
-import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
-import NotificationsMenu from "../features/notifications/components/NotificationsMenu";
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
+import CircleIcon from '@mui/icons-material/Circle';
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
 
-import { getPosts } from "../features/posts/api/postsApi";
-import { useAuthStore } from "../features/auth/store/authStore";
+import { getPosts, searchPosts } from '../features/posts/api/postsApi';
+import { getFriends } from '../features/friends/api/friendsApi';
+import { useAuthStore } from '../features/auth/store/authStore';
+import { API_ORIGIN } from '../config';
 
-import CreatePostCard from "../features/posts/components/CreatePostCard";
-import PostCard from "../features/posts/components/PostCard";
+import CreatePostCard from '../features/posts/components/CreatePostCard';
+import PostCard from '../features/posts/components/PostCard';
 
 export default function FeedPage() {
+  const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["posts"],
+  const [search, setSearch] = useState('');
 
+  // Postları gətirmək və ya axtarış etmək üçün query
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['posts', search],
     queryFn: () =>
-      getPosts({
-        page: 1,
-        pageSize: 20,
-      }),
+      search.trim()
+        ? searchPosts(search, { page: 1, pageSize: 20 })
+        : getPosts({ page: 1, pageSize: 20 }),
   });
+
+  // Contacts üçün dostları çəkirik
+  const { data: friendsData } = useQuery({
+    queryKey: ['friends-sidebar'],
+    queryFn: getFriends,
+  });
+
+  // Yalnız onlayn olan dostları süzgəcdən keçiririk
+  const onlineFriends = friendsData?.filter((friend) => friend.isOnline) || [];
 
   return (
     <Box
       sx={{
-        minHeight: "100vh",
-        bgcolor: "#f6f8fc",
+        minHeight: '100vh',
+        bgcolor: '#f6f8fc',
       }}
     >
-   
-
       <Container
         maxWidth="xl"
         sx={{
@@ -57,21 +65,22 @@ export default function FeedPage() {
       >
         <Box
           sx={{
-            display: "grid",
+            display: 'grid',
             gridTemplateColumns: {
-              xs: "1fr",
-              md: "240px minmax(0, 680px)",
-              lg: "240px minmax(0, 680px) 300px",
+              xs: '1fr',
+              md: '240px minmax(0, 680px)',
+              lg: '240px minmax(0, 680px) 300px',
             },
             gap: 3,
-            justifyContent: "center",
+            justifyContent: 'center',
           }}
         >
+          {/* Sol Navigasiya */}
           <Box
             sx={{
               display: {
-                xs: "none",
-                md: "block",
+                xs: 'none',
+                md: 'block',
               },
             }}
           >
@@ -80,10 +89,10 @@ export default function FeedPage() {
               sx={{
                 p: 2,
                 borderRadius: 4,
-                position: "sticky",
+                position: 'sticky',
                 top: 96,
-                border: "1px solid",
-                borderColor: "divider",
+                border: '1px solid',
+                borderColor: 'divider',
               }}
             >
               <Stack spacing={1.2}>
@@ -96,17 +105,44 @@ export default function FeedPage() {
                 </Typography>
 
                 <Typography fontWeight={700}>Home</Typography>
-
-                <Typography color="text.secondary">Friends</Typography>
-
+                <Typography
+                  color="text.secondary"
+                  sx={{ cursor: 'pointer' }}
+                  onClick={() => navigate('/friends')}
+                >
+                  Friends
+                </Typography>
                 <Typography color="text.secondary">Messages</Typography>
-
                 <Typography color="text.secondary">Notifications</Typography>
               </Stack>
             </Paper>
           </Box>
 
+          {/* Orta Hissə: Axtarış, Post yaratma və Postlar */}
           <Stack spacing={2.5}>
+            {/* Task 2: Post Search Input */}
+            <TextField
+              fullWidth
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search posts..."
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 999,
+                  bgcolor: 'white',
+                },
+              }}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRoundedIcon />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+
             <CreatePostCard />
 
             {isLoading &&
@@ -120,7 +156,7 @@ export default function FeedPage() {
                 >
                   <Box
                     sx={{
-                      display: "flex",
+                      display: 'flex',
                       gap: 1.5,
                     }}
                   >
@@ -133,7 +169,6 @@ export default function FeedPage() {
                   </Box>
 
                   <Skeleton height={24} sx={{ mt: 2 }} />
-
                   <Skeleton height={24} width="75%" />
                 </Paper>
               ))}
@@ -154,11 +189,12 @@ export default function FeedPage() {
             ))}
           </Stack>
 
+          {/* Sağ Hissə: Contacts (Onlayn Dostlar və Mesaja Keçid) */}
           <Box
             sx={{
               display: {
-                xs: "none",
-                lg: "block",
+                xs: 'none',
+                lg: 'block',
               },
             }}
           >
@@ -167,19 +203,69 @@ export default function FeedPage() {
               sx={{
                 p: 2.5,
                 borderRadius: 4,
-                position: "sticky",
+                position: 'sticky',
                 top: 96,
-                border: "1px solid",
-                borderColor: "divider",
+                border: '1px solid',
+                borderColor: 'divider',
               }}
             >
               <Typography fontWeight={800} mb={2}>
                 Contacts
               </Typography>
 
-              <Typography color="text.secondary" variant="body2">
-                Online friends will appear here.
-              </Typography>
+              {onlineFriends.length === 0 ? (
+                <Typography color="text.secondary" variant="body2">
+                  Online friends will appear here.
+                </Typography>
+              ) : (
+                <Stack spacing={1.5}>
+                  {onlineFriends.map((friend) => {
+                    const avatar = friend.profileImageUrl
+                      ? friend.profileImageUrl.startsWith('http')
+                        ? friend.profileImageUrl
+                        : `${API_ORIGIN}${friend.profileImageUrl}`
+                      : null;
+
+                    return (
+                      <Box
+                        key={friend.id}
+                        onClick={() => navigate(`/messages/${friend.id}`)}
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 1.5,
+                          cursor: 'pointer',
+                          p: 1,
+                          borderRadius: 2,
+                          '&:hover': {
+                            bgcolor: 'action.hover',
+                          },
+                        }}
+                      >
+                        <Box sx={{ position: 'relative' }}>
+                          <Avatar src={avatar || undefined} sx={{ width: 38, height: 38 }}>
+                            {friend.firstName?.[0]}
+                          </Avatar>
+                          <CircleIcon
+                            sx={{
+                              position: 'absolute',
+                              bottom: 0,
+                              right: 0,
+                              fontSize: 12,
+                              color: 'success.main',
+                              bgcolor: 'background.paper',
+                              borderRadius: '50%',
+                            }}
+                          />
+                        </Box>
+                        <Typography fontWeight={700} variant="body2" noWrap>
+                          {friend.firstName} {friend.lastName}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              )}
             </Paper>
           </Box>
         </Box>

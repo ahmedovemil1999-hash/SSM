@@ -27,10 +27,12 @@ import {
   rejectFriendRequest,
   searchUsers,
   sendFriendRequest,
+  removeFriend,
 } from '../features/friends/api/friendsApi';
 
 import PeopleCard from '../features/friends/components/PeopleCard';
 import FriendRequestCard from '../features/friends/components/FriendRequestCard';
+import FriendCard from '../features/friends/components/FriendCard';
 
 export default function FriendsPage() {
   const queryClient = useQueryClient();
@@ -88,6 +90,16 @@ export default function FriendsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ['friend-requests'],
+      });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: removeFriend,
+
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ['friends'],
       });
     },
   });
@@ -238,27 +250,30 @@ export default function FriendsPage() {
 
         {tab === 2 && (
           <Stack spacing={2}>
+            {friendsQuery.data?.length === 0 && (
+              <Paper
+                sx={{
+                  p: 4,
+                  textAlign: 'center',
+                  borderRadius: 4,
+                }}
+              >
+                <Typography>
+                  You don't have any friends yet.
+                </Typography>
+              </Paper>
+            )}
+
             {friendsQuery.data?.map(
               (friend) => (
-                <Paper
+                <FriendCard
                   key={friend.id}
-                  sx={{
-                    p: 2,
-                    borderRadius: 4,
-                  }}
-                >
-                  <Typography fontWeight={800}>
-                    {friend.firstName}{' '}
-                    {friend.lastName}
-                  </Typography>
-
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                  >
-                    @{friend.userName}
-                  </Typography>
-                </Paper>
+                  friend={friend}
+                  loading={removeMutation.isPending}
+                  onRemove={(id) =>
+                    removeMutation.mutate(id)
+                  }
+                />
               )
             )}
           </Stack>

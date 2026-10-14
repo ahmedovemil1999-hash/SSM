@@ -109,3 +109,15 @@ export async function updatePost(postId, {
 
   return response.data;
 }
+
+export async function searchPosts(searchTerm, { page = 1, pageSize = 10 } = {}) {
+  const response = await api.get('/posts/search', {
+    params: {
+      query: searchTerm,
+      page,
+      pageSize,
+    },
+  });
+
+  return response.data;
+}

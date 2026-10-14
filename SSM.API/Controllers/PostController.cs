@@ -255,6 +255,62 @@ public class PostsController : ControllerBase
         });
     }
 
+    [HttpGet("search")]
+    public async Task<ActionResult> Search(
+        [FromQuery] string query,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = GetCurrentUserId();
+
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 50);
+
+        var postsQuery = _dbContext.Posts
+            .AsNoTracking()
+            .Where(x => !x.IsDeleted && !string.IsNullOrEmpty(x.Content) && x.Content.Contains(query));
+
+        var totalCount = await postsQuery.CountAsync(cancellationToken);
+
+        var posts = await postsQuery
+            .OrderByDescending(x => x.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new PostResponse
+            {
+                Id = x.Id,
+                Content = x.Content,
+                ImageUrl = x.ImageUrl,
+                VideoUrl = x.VideoUrl,
+                CreatedAt = x.CreatedAt,
+                UpdatedAt = x.UpdatedAt,
+
+                UserId = x.UserId,
+                UserName = x.User.UserName!,
+                FirstName = x.User.FirstName,
+                LastName = x.User.LastName,
+                ProfileImageUrl = x.User.ProfileImageUrl,
+
+                LikeCount = x.Likes.Count(),
+                CommentCount = x.Comments.Count(),
+
+                IsLikedByCurrentUser = x.Likes.Any(l => l.UserId == userId)
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(new
+        {
+            items = posts,
+            page,
+            pageSize,
+            totalCount,
+            totalPages = (int)Math.Ceiling(
+                totalCount / (double)pageSize
+            )
+        });
+    }
+
     [HttpPut("{id:guid}")]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> Update(
@@ -299,9 +355,6 @@ public class PostsController : ControllerBase
 
         try
         {
-            // =========================
-            // Remove existing image
-            // =========================
             if (request.RemoveImage && post.ImageUrl is not null)
             {
                 await _fileStorage.DeleteAsync(
@@ -312,9 +365,6 @@ public class PostsController : ControllerBase
                 post.ImageUrl = null;
             }
 
-            // =========================
-            // Remove existing video
-            // =========================
             if (request.RemoveVideo && post.VideoUrl is not null)
             {
                 await _fileStorage.DeleteAsync(
@@ -325,12 +375,8 @@ public class PostsController : ControllerBase
                 post.VideoUrl = null;
             }
 
-            // =========================
-            // New image
-            // =========================
             if (request.Image is not null)
             {
-                // Əgər əvvəl video varsa sil
                 if (post.VideoUrl is not null)
                 {
                     await _fileStorage.DeleteAsync(
@@ -341,7 +387,6 @@ public class PostsController : ControllerBase
                     post.VideoUrl = null;
                 }
 
-                // Əgər əvvəl image varsa sil
                 if (post.ImageUrl is not null)
                 {
                     await _fileStorage.DeleteAsync(
@@ -358,12 +403,8 @@ public class PostsController : ControllerBase
                 post.ImageUrl = newImageUrl;
             }
 
-            // =========================
-            // New video
-            // =========================
             if (request.Video is not null)
             {
-                // Əgər əvvəl image varsa sil
                 if (post.ImageUrl is not null)
                 {
                     await _fileStorage.DeleteAsync(
@@ -374,7 +415,6 @@ public class PostsController : ControllerBase
                     post.ImageUrl = null;
                 }
 
-                // Əgər əvvəl video varsa sil
                 if (post.VideoUrl is not null)
                 {
                     await _fileStorage.DeleteAsync(
